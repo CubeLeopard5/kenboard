@@ -23,6 +23,7 @@ import {
   openTaskModal,
   saveTaskModal,
 } from './tasks.js';
+import { bindTheme } from './theme.js';
 
 // -- Sticky title observer --------------------------------------------------
 // Highlights the floating header while a section title is "stuck" against it.
@@ -85,6 +86,7 @@ bindHashSync();
 bindDnd();
 renderMarkdown();
 bindKeyboard();
+bindTheme();
 bindAutoRefresh();
 
 // -- Inline onclick="" interop ----------------------------------------------

@@ -13,6 +13,74 @@
   --todo:    #d63384;
   --yellow:  #d4a017;
   --gap:     8px;
+  color-scheme: light;
+}
+
+/* -- Dark mode (ken task « Mode sombre ») --------------------------------
+ * Palette override only. Every surface / text / border colour in this sheet
+ * resolves through the :root custom properties above, so redefining them
+ * under [data-theme="dark"] re-themes the entire UI without touching a
+ * single component rule. Values are GitHub Primer dark, paired with the
+ * Primer light defaults in :root. ``color-scheme: dark`` flips native
+ * widgets (scrollbars, form controls) too. The attribute is set on <html>
+ * by the no-flash bootstrap in base.html before first paint. */
+[data-theme="dark"] {
+  --bg:      #0d1117;
+  --card:    #161b22;
+  --border:  #30363d;
+  --accent:  #2f81f7;
+  --green:   #3fb950;
+  --orange:  #d29922;
+  --red:     #f85149;
+  --purple:  #a371f7;
+  --cyan:    #58a6ff;
+  --dimmed:  #8b949e;
+  --text:    #e6edf3;
+  --todo:    #f778ba;
+  --yellow:  #e3b341;
+  color-scheme: dark;
+}
+
+/* Dark-mode overrides for the handful of surfaces whose colours are baked in
+ * (decorative checkerboards + the brand-coloured empty-state cards) and so
+ * don't follow the :root variables. Each maps its hard-coded light value to a
+ * dark equivalent so no light panel survives. Light theme is untouched; the
+ * @media print block stays white/black on purpose (paper). */
+
+/* Paintbrush attachement panels: light checkerboard → dark grey checkerboard
+ * (keeps the red annotation shapes legible). Sizes mirror the light rules. */
+[data-theme="dark"] .task-modal-attachement {
+  background:
+    repeating-conic-gradient(#1c2128 0% 25%, #2d333b 0% 50%) 0 0 / 12px 12px;
+}
+[data-theme="dark"] .fullscreen-attachement {
+  background:
+    repeating-conic-gradient(#1c2128 0% 25%, #2d333b 0% 50%) 0 0 / 16px 16px;
+}
+
+/* Empty-state « ESN » cards (partials/empty_state.html): light brand palette
+ * → dark surfaces + lightened brand accents. */
+[data-theme="dark"] .es-badge {
+  color: #d2a8ff;
+  background: rgba(163, 113, 247, 0.16);
+}
+[data-theme="dark"] .es-title,
+[data-theme="dark"] .es-card h3 {
+  color: var(--text);
+}
+[data-theme="dark"] .es-subtitle,
+[data-theme="dark"] .es-card p {
+  color: var(--dimmed);
+}
+[data-theme="dark"] .es-card {
+  background: var(--card);
+}
+[data-theme="dark"] .es-card-raised {
+  background: var(--card);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.45);
+}
+[data-theme="dark"] .es-card-tag {
+  color: #d2a8ff;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -433,6 +501,26 @@ body {
   transition: color 0.12s, border-color 0.12s;
 }
 .kb-help-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Header dark-mode toggle (ken task « Mode sombre »). Same round dimmed
+ * glyph as the help button; its content (☾ / ☀) is kept in sync by theme.js. */
+.kb-theme-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--dimmed);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  margin-right: 10px;
+  transition: color 0.12s, border-color 0.12s;
+}
+.kb-theme-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
 }
