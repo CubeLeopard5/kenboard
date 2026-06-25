@@ -1083,7 +1083,7 @@ body {
 }
 .cat-modal-project.current-project {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 5%, white);
+  background: color-mix(in srgb, var(--accent) 5%, var(--card));
 }
 .cat-modal-project .proj-remove {
   color: var(--dimmed);
@@ -1642,7 +1642,7 @@ button.cat-card-add {
   color: var(--red);
   border: none;
 }
-.btn-delete:hover { background: color-mix(in srgb, var(--red) 10%, white); }
+.btn-delete:hover { background: color-mix(in srgb, var(--red) 10%, var(--card)); }
 
 /* -- Admin tables (users / API keys) -- */
 .users-table input[type="text"],

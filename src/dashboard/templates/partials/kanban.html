@@ -2,7 +2,7 @@
 {# Column: A faire #}
 {% set col = columns[0] %}
 {% set col_tasks = tasks | selectattr("status", "equalto", col.id) | list %}
-<div class="kanban-col" style="background:color-mix(in srgb, {{ col.color }} 5%, white)">
+<div class="kanban-col" style="background:color-mix(in srgb, {{ col.color }} 5%, var(--card))">
   <div class="kanban-col-header" style="background:color-mix(in srgb, {{ col.color }} 25%, transparent)">
     <span class="col-name" style="color:{{ col.color }}">{{ col.name }}</span>
     <button class="kanban-add-btn" onclick="openTaskModal(this.closest('.kanban-col').querySelector('.kanban-tasks'), '{{ project_id | default('', true) }}')">+</button>
@@ -20,7 +20,7 @@
   <div class="kanban-middle">
     {% for col in columns[1:3] %}
     {% set col_tasks = tasks | selectattr("status", "equalto", col.id) | list %}
-    <div class="kanban-col" style="background:color-mix(in srgb, {{ col.color }} 5%, white)">
+    <div class="kanban-col" style="background:color-mix(in srgb, {{ col.color }} 5%, var(--card))">
       <div class="kanban-col-header" style="background:color-mix(in srgb, {{ col.color }} 25%, transparent)">
         <span class="col-name" style="color:{{ col.color }}">{{ col.name }}</span>
       </div>
@@ -43,7 +43,7 @@
   {% set col = columns[3] %}
   {% set col_tasks = tasks | selectattr("status", "equalto", col.id) | list %}
   {% set max_visible = 5 %}
-  <div class="kanban-col" style="background:color-mix(in srgb, {{ col.color }} 5%, white)">
+  <div class="kanban-col" style="background:color-mix(in srgb, {{ col.color }} 5%, var(--card))">
     <div class="kanban-col-header" style="background:color-mix(in srgb, {{ col.color }} 25%, transparent)">
       <span class="col-name" style="color:{{ col.color }}">{{ col.name }}</span>
     </div>
