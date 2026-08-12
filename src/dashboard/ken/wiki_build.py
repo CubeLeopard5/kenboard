@@ -1,21 +1,21 @@
 """``ken wiki build`` — render the wiki MD tree as standalone HTML.
 
-Wraps every page in the standard layout (sidebar + main + build footer) and renders per-
-task detail pages with the ``.fullscreen-card`` layout mirroring the board's full-screen
-task view (#376f, #741, #742, #743).
+Wraps every page in the standard layout (sidebar + main, plus a per-task footer on
+detail pages) and renders per-task detail pages with the ``.fullscreen-card`` layout
+mirroring the board's full-screen task view (#376f, #741, #742, #743).
 """
 
 from __future__ import annotations
 
 import posixpath
 import shutil
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import click
 
-from dashboard.ken.config import KenConfig, _version
+from dashboard.ken.config import KenConfig
 from dashboard.ken.wiki import _architecture_help, _load_sections, wiki
 from dashboard.ken.wiki_css import _WIKI_HTML_CSS
 from dashboard.ken.wiki_detail import (
@@ -125,19 +125,19 @@ def _format_sidebar_nav(
     return "".join(lines)
 
 
-def _format_footer(version: str, generated_at: datetime) -> str:
-    """Render the build footer shown at the bottom of every wiki page (#743).
+def _format_footer(updated_at: datetime | str | None = None) -> str:
+    """Render a page's footer: the task's last-modified stamp (#743, #999, #1014).
 
-    The footer carries the version of ``ken`` (= kenboard) and the build timestamp so a
-    reader can tell at a glance how fresh the rendered HTML is and which release
-    produced it. UTC is used to stay portable across machines that publish the wiki.
+    ``updated_at`` is the frontmatter datetime (or ISO string); pages with no backing
+    task get ``""`` — no footer at all. Carries neither the build time (#999) nor the
+    ``ken`` version (#1014): both are page-independent, so either one rewrites the
+    whole committed HTML tree on every release. Only per-task data belongs here.
     """
-    stamp = generated_at.strftime("%Y-%m-%d %H:%M:%S UTC")
-    return (
-        f'<footer class="wiki-footer">'
-        f"Généré le {stamp} par kenboard {version}"
-        f"</footer>"
-    )
+    if isinstance(updated_at, datetime):
+        stamp = updated_at.strftime("%Y-%m-%d %H:%M:%S")
+    else:
+        stamp = str(updated_at or "").replace("T", " ")
+    return f'<footer class="wiki-footer">Modifié le {stamp}</footer>' if stamp else ""
 
 
 def _wrap_html(
@@ -146,8 +146,8 @@ def _wrap_html(
     """Wrap a rendered body with the standard layout (head + sidebar + main).
 
     ``footer_html`` is appended inside ``<main>`` after the body so it sits at the
-    bottom of the content column on every page (#743). Optional for callers that don't
-    care (defaults to empty), but ``_build_html_plan`` always passes a non-empty value.
+    bottom of the content column (#743). Empty on pages with no per-task stamp — index
+    and journal pages render no footer at all (#1014).
     """
     return (
         '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
@@ -186,13 +186,12 @@ def _sidebar_section_key(rel: Path, meta: dict[str, Any]) -> str:
 
 
 def _build_html_plan(in_dir: Path, sections: list) -> list[dict[str, str]]:
-    """Walk every ``.md`` under ``in_dir`` and return ``[{path, content}]`` for HTML
-    output.
+    """Walk ``in_dir`` and return the ``[{path, content}]`` HTML plan.
 
-    Detail pages (any MD with a YAML frontmatter block — written by
-    ``_format_task_detail_md`` since #376f) get the ``.fullscreen-card`` layout
-    mirroring the kenboard board's full-screen task view; everything else gets the plain
-    Markdown layout.
+    Covers every ``.md`` file under the tree. Detail pages (any MD with a YAML
+    frontmatter block — written by ``_format_task_detail_md`` since #376f) get the
+    ``.fullscreen-card`` layout mirroring the kenboard board's full-screen task view;
+    everything else gets the plain Markdown layout.
     """
     files: list[dict[str, str]] = []
     # #742 — discover daily log pages so the sidebar can list them as a
@@ -206,8 +205,7 @@ def _build_html_plan(in_dir: Path, sections: list) -> list[dict[str, str]]:
         if log_dir.is_dir()
         else []
     )
-    # #743 — build footer computed once and embedded on every page.
-    footer_html = _format_footer(_version(), datetime.now(UTC))
+    # #999/#1014 — per-task stamp only; no build time, no version (both churn).
     for md_path in sorted(in_dir.rglob("*.md")):
         rel = md_path.relative_to(in_dir)
         # Always derive path strings from ``as_posix()`` (not ``str(rel)``): on
@@ -221,9 +219,11 @@ def _build_html_plan(in_dir: Path, sections: list) -> list[dict[str, str]]:
         if meta and "id" in meta:
             page_title = f"#{meta.get('id')} — {meta.get('title') or 'task'}"
             body_html = _render_task_detail(meta, body_md)
+            footer_html = _format_footer(meta.get("updated_at"))
         else:
             page_title = _extract_title(md_text)
             body_html = _rewrite_md_links_to_html(_render_markdown(md_text))
+            footer_html = ""
         html = _wrap_html(page_title, body_html, sidebar, footer_html)
         files.append({"path": rel.with_suffix(".html").as_posix(), "content": html})
     return files

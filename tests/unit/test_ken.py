@@ -9,7 +9,6 @@ import json
 import os
 import re
 import sys
-from datetime import UTC
 from unittest.mock import patch
 
 import pytest
@@ -1321,14 +1320,42 @@ class TestCliMutations:
         assert 'class="sidebar"' in body
         # Inline CSS — page is self-contained
         assert "<style>" in body
-        # #743 — every built page carries the build footer.
-        assert 'class="wiki-footer"' in body
-        assert "kenboard" in body and "Généré le" in body
-        # Footer is rendered on every page kind: root index, log index too.
-        assert 'class="wiki-footer"' in (out / "index.html").read_text(encoding="utf-8")
-        assert 'class="wiki-footer"' in (out / "log" / "index.html").read_text(
-            encoding="utf-8"
+        # #999/#1014 — pages carry no build timestamp and no ken version, so a
+        # rebuild of an unchanged wiki is byte-identical (the HTML is committed).
+        from dashboard import __version__
+
+        assert "Généré le" not in body
+        assert __version__ not in body
+        # #1014 — pages with no backing task (section index, root index, journal)
+        # render no footer at all: it would now be empty.
+        assert 'class="wiki-footer"' not in body
+        for page in ("index.html", "log/index.html"):
+            assert 'class="wiki-footer"' not in (out / page).read_text(encoding="utf-8")
+
+    def test_wiki_build_is_byte_stable_across_versions(
+        self, cwd_tmp, runner, monkeypatch
+    ):
+        # #1014 — the churn regression guard: bumping the ken version must not
+        # change a single byte of the built tree.
+        self._setup(cwd_tmp)
+        self._write_architecture(
+            cwd_tmp,
+            "    - id: backend\n      title: Backend\n",
         )
+        self._make_md_tree(cwd_tmp)
+        out = cwd_tmp / "wiki-html"
+
+        def build_all():
+            assert runner.invoke(ken.cli, ["wiki", "build"]).exit_code == 0
+            return {
+                p.relative_to(out).as_posix(): p.read_text(encoding="utf-8")
+                for p in sorted(out.rglob("*.html"))
+            }
+
+        monkeypatch.setattr("dashboard.__version__", "0.1.131")
+        before = build_all()
+        monkeypatch.setattr("dashboard.__version__", "9.9.9")
+        assert build_all() == before
 
     def test_wiki_build_rewrites_md_links_to_html(self, cwd_tmp, runner):
         self._setup(cwd_tmp)
@@ -1409,6 +1436,30 @@ class TestCliMutations:
         assert not (out / "stale.html").exists()
         assert (out / "index.html").is_file()
 
+    def test_wiki_build_is_deterministic_across_runs(self, cwd_tmp, runner):
+        # #999 — the HTML tree is committed to SVN; rebuilding an unchanged
+        # wiki must be byte-identical or every publish churns every page.
+        self._setup(cwd_tmp)
+        self._write_architecture(
+            cwd_tmp,
+            "    - id: backend\n      title: Backend\n",
+        )
+        self._make_md_tree(cwd_tmp)
+        out = cwd_tmp / "wiki-html"
+        result = runner.invoke(ken.cli, ["wiki", "build"])
+        assert result.exit_code == 0, result.output
+        first = {
+            p.relative_to(out): p.read_text(encoding="utf-8")
+            for p in out.rglob("*.html")
+        }
+        result = runner.invoke(ken.cli, ["wiki", "build"])
+        assert result.exit_code == 0, result.output
+        second = {
+            p.relative_to(out): p.read_text(encoding="utf-8")
+            for p in out.rglob("*.html")
+        }
+        assert first == second
+
     # #376f: per-task detail pages.
     def test_wiki_sync_emits_per_task_detail_pages(self, cwd_tmp, runner):
         self._setup(cwd_tmp)
@@ -1427,6 +1478,7 @@ class TestCliMutations:
                 "status": "doing",
                 "who": "Claude",
                 "project_id": "p1",
+                "updated_at": "2026-05-24T18:45:00",
             },
         ]
         ctx, _calls = _patch_responses([("GET", "/api/v1/wiki/all", rows)])
@@ -1440,6 +1492,9 @@ class TestCliMutations:
         assert body.startswith("---")  # YAML frontmatter
         assert "id: 42" in body
         assert "status: doing" in body
+        # #999 — the task's last-modified stamp travels via frontmatter so
+        # `wiki build` can render it in the page footer.
+        assert "updated_at: 2026-05-24T18:45:00" in body
         assert "Really important task body" in body
         # Section index links to the detail page (not just the title text).
         index = (cwd_tmp / "wiki" / "backend" / "index.md").read_text(encoding="utf-8")
@@ -1547,6 +1602,7 @@ class TestCliMutations:
                 "status": "todo",
                 "who": "Claude",
                 "project_id": "p1",
+                "updated_at": "2026-05-25T09:00:00",
             },
         ]
         ctx, _calls = _patch_responses([("GET", "/api/v1/wiki/all", rows)])
@@ -1565,6 +1621,9 @@ class TestCliMutations:
         # Footer nav present.
         assert "← retour à backend" in detail
         assert "voir log" in detail
+        # #999 — detail footer shows the task's last-modified stamp, not the
+        # build time.
+        assert "Modifié le 2026-05-25 09:00:00" in detail
 
     # #376e: ken wiki lint — orphans / unclassified / empty-section checks.
     def _seed_lint_arch(self, cwd_tmp):
@@ -2301,17 +2360,35 @@ class TestLogHelpers:
 
 
 class TestBuildFooter:
-    """Wiki HTML pages show the build version + generation timestamp (#743)."""
+    """Footer = task-modified stamp only — no build time, no version (#999, #1014)."""
 
-    def test_format_footer_includes_version_and_date(self):
+    def test_format_footer_with_task_updated_at(self):
         from datetime import datetime
 
-        out = ken._format_footer(
-            "0.1.131", datetime(2026, 6, 4, 14, 32, 10, tzinfo=UTC)
-        )
-        assert "kenboard 0.1.131" in out
-        assert "2026-06-04 14:32:10 UTC" in out
+        out = ken._format_footer(datetime(2026, 6, 4, 14, 32, 10))
+        assert "Modifié le 2026-06-04 14:32:10" in out
         assert 'class="wiki-footer"' in out
+
+    def test_format_footer_accepts_iso_string(self):
+        # Frontmatter values may survive YAML parsing as plain strings.
+        out = ken._format_footer("2026-06-04T14:32:10")
+        assert "Modifié le 2026-06-04 14:32:10" in out
+
+    def test_format_footer_omits_ken_version(self):
+        # #1014 — the version is page-independent: emitting it turned every
+        # release into a full rewrite of the committed HTML tree.
+        from datetime import datetime
+
+        from dashboard import __version__
+
+        out = ken._format_footer(datetime(2026, 6, 4, 14, 32, 10))
+        assert "kenboard" not in out
+        assert __version__ not in out
+
+    def test_format_footer_without_date_is_empty(self):
+        # Index / journal pages have no backing task — no footer at all, and
+        # especially no build timestamp (SVN churn, #999).
+        assert ken._format_footer() == ""
 
     def test_wrap_html_appends_footer_inside_main(self):
         out = ken._wrap_html("title", "<p>body</p>", "<nav/>", "<footer/>")
